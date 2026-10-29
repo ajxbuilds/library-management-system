@@ -515,6 +515,7 @@ def sync_dsa_engine(db: Session):
         dsa_engine.record_loan_in_graph(l.user_id, l.book_id)
 
     # Hydrate book reservation queues
+    dsa_engine.book_queues.clear()
     for r in reservations:
         q = dsa_engine.get_or_create_book_queue(r.book_id)
         q.enqueue({

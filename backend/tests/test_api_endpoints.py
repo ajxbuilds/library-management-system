@@ -98,11 +98,11 @@ def test_student_issue_and_return_flow(client):
     student_id = login_resp.json()["user"]["id"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Ensure student has borrowing quota available
+    # Ensure student has borrowing quota available and book 2 is clean
     my_loans = client.get("/api/loans/my", headers=headers).json()
-    active_loans = [l for l in my_loans if l["status"] == "active"]
-    if len(active_loans) >= 5:
-        client.post("/api/loans/return", json={"loan_id": active_loans[0]["id"]}, headers=headers)
+    for l in my_loans:
+        if (l["book_id"] == 2 or len(my_loans) >= 4) and l["status"] == "active":
+            client.post("/api/loans/return", json={"loan_id": l["id"]}, headers=headers)
 
     # 2. Student cannot issue a book on behalf of another user
     forbidden_resp = client.post("/api/loans/issue", json={

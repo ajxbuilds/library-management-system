@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.models.reservation import Reservation, ReservationStatus
 from app.models.user import User, UserRole
+from app.models.book import Book
 from app.schemas.reservation import ReservationCreate, ReservationOut
 from app.services.reservation_service import ReservationService
 from app.algorithms.engine import dsa_engine
@@ -145,3 +146,23 @@ def cancel_reservation(
 
     db.commit()
     return {"success": True, "message": "Reservation cancelled successfully"}
+
+@router.post("/book/{book_id}/clear")
+def clear_book_queue(
+    book_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Clears all pending reservations for this book from DB and in-memory FIFO queue."""
+    pending = db.query(Reservation).filter(
+        Reservation.book_id == book_id,
+        Reservation.status.in_([ReservationStatus.PENDING, ReservationStatus.READY])
+    ).all()
+    count = len(pending)
+    for r in pending:
+        r.status = ReservationStatus.CANCELLED
+    q = dsa_engine.get_or_create_book_queue(book_id)
+    while not q.is_empty():
+        q.dequeue()
+    db.commit()
+    return {"success": True, "message": f"Successfully cleared {count} reservations from Book #{book_id} queue."}

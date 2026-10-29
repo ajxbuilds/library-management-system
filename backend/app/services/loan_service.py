@@ -169,14 +169,20 @@ class LoanService:
             days_overdue = (now.date() - loan.due_date.date()).days
             if days_overdue > 0:
                 fine_amount = round(days_overdue * settings.DAILY_FINE_RATE, 2)
-                fine_record = Fine(
-                    user_id=loan.user_id,
-                    loan_id=loan.id,
-                    amount=fine_amount,
-                    days_overdue=days_overdue,
-                    status=FineStatus.PENDING
-                )
-                db.add(fine_record)
+                fine_record = db.query(Fine).filter(Fine.loan_id == loan.id).first()
+                if fine_record:
+                    fine_record.amount = fine_amount
+                    fine_record.days_overdue = days_overdue
+                    fine_record.status = FineStatus.PENDING
+                else:
+                    fine_record = Fine(
+                        user_id=loan.user_id,
+                        loan_id=loan.id,
+                        amount=fine_amount,
+                        days_overdue=days_overdue,
+                        status=FineStatus.PENDING
+                    )
+                    db.add(fine_record)
                 
                 # Heap insertion for fine urgency
                 dsa_engine.overdue_heap.push((-days_overdue, fine_amount), {

@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeftRight, Clock, AlertTriangle, CheckCircle, 
-  RotateCcw, Search, User, BookOpen, Layers, Users, RefreshCw, Sparkles
+  RotateCcw, Search, User, BookOpen, Layers, Users, RefreshCw, Sparkles, X
 } from 'lucide-react';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 interface CirculationPageProps {
   onSelectBook: (bookId: number) => void;
 }
 
 export const CirculationPage: React.FC<CirculationPageProps> = ({ onSelectBook }) => {
+  const { user } = useAuth();
   const [loans, setLoans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'OVERDUE'>('ALL');
@@ -29,6 +31,12 @@ export const CirculationPage: React.FC<CirculationPageProps> = ({ onSelectBook }
   const [queueData, setQueueData] = useState<any>(null);
   const [queueLoading, setQueueLoading] = useState(false);
   const [activeQueuesList, setActiveQueuesList] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user?.id && !deskUserId) {
+      setDeskUserId(String(user.id));
+    }
+  }, [user]);
 
   const loadLoans = async () => {
     try {
@@ -78,14 +86,50 @@ export const CirculationPage: React.FC<CirculationPageProps> = ({ onSelectBook }
         type: 'success',
         text: `Successfully placed User #${deskUserId} in FIFO Queue for Book #${deskBookId}! Position: #${res.queue_position}`
       });
+      const bookNum = parseInt(deskBookId);
       setInspectBookId(deskBookId);
-      loadQueue(parseInt(deskBookId));
-      loadActiveQueues();
+      loadQueue(bookNum);
+      loadActiveQueues(bookNum);
       setDeskBookId('');
     } catch (err: any) {
       setActionMsg({ type: 'error', text: err.message || 'Failed to place book in queue' });
     } finally {
       setDeskSubmitting(false);
+    }
+  };
+
+  const handleCancelReservation = async (reservationId: number) => {
+    try {
+      setQueueLoading(true);
+      await api.cancelReservation(reservationId);
+      setActionMsg({
+        type: 'success',
+        text: `Withdrew reservation #${reservationId} from the FIFO Queue.`
+      });
+      const currBookId = inspectBookId ? parseInt(inspectBookId) : 5;
+      await loadQueue(currBookId);
+      await loadActiveQueues(currBookId);
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err.message || 'Failed to withdraw from queue' });
+    } finally {
+      setQueueLoading(false);
+    }
+  };
+
+  const handleClearQueue = async (bookIdNum: number) => {
+    try {
+      setQueueLoading(true);
+      const res = await api.clearBookQueue(bookIdNum);
+      setActionMsg({
+        type: 'success',
+        text: res.message || `Cleared waiting queue for Book #${bookIdNum}`
+      });
+      await loadQueue(bookIdNum);
+      await loadActiveQueues(bookIdNum);
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err.message || 'Failed to clear queue' });
+    } finally {
+      setQueueLoading(false);
     }
   };
 
@@ -95,7 +139,7 @@ export const CirculationPage: React.FC<CirculationPageProps> = ({ onSelectBook }
       const res = await api.seedDemoCirculation();
       setActionMsg({ type: 'success', text: res.message });
       loadLoans();
-      loadActiveQueues();
+      loadActiveQueues(5);
     } catch (err: any) {
       setActionMsg({ type: 'error', text: err.message || 'Failed to seed demo data' });
     } finally {
@@ -109,7 +153,7 @@ export const CirculationPage: React.FC<CirculationPageProps> = ({ onSelectBook }
       const res = await api.clearDemoCirculation();
       setActionMsg({ type: 'success', text: res.message });
       loadLoans();
-      loadActiveQueues();
+      loadActiveQueues(5);
     } catch (err: any) {
       setActionMsg({ type: 'error', text: err.message || 'Failed to clear circulation data' });
     } finally {
@@ -129,16 +173,13 @@ export const CirculationPage: React.FC<CirculationPageProps> = ({ onSelectBook }
     }
   };
 
-  const loadActiveQueues = async () => {
+  const loadActiveQueues = async (keepBookId?: number) => {
     try {
       const activeList = await api.getActiveQueues();
       setActiveQueuesList(activeList || []);
-      if (activeList && activeList.length > 0) {
-        setInspectBookId(String(activeList[0].book_id));
-        loadQueue(activeList[0].book_id);
-      } else {
-        loadQueue(5);
-      }
+      const targetId = keepBookId ?? (inspectBookId ? parseInt(inspectBookId) : (activeList && activeList.length > 0 ? activeList[0].book_id : 5));
+      setInspectBookId(String(targetId));
+      loadQueue(targetId);
     } catch {
       loadQueue(5);
     }
@@ -305,6 +346,28 @@ export const CirculationPage: React.FC<CirculationPageProps> = ({ onSelectBook }
                 required
               />
             </div>
+            <div className="flex flex-wrap items-center gap-1 mt-1.5">
+              <span className="text-[10px] text-slate-500">Quick:</span>
+              {[
+                { id: '3', label: '#3 Demo' },
+                { id: '4', label: '#4 Haruto' },
+                { id: '5', label: '#5 Chloe' },
+                { id: '8', label: '#8 Alex' }
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setDeskUserId(m.id)}
+                  className={`px-1.5 py-0.5 rounded text-[10px] border transition ${
+                    deskUserId === m.id
+                      ? 'bg-brand-500/20 text-brand-300 border-brand-500/40 font-semibold'
+                      : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
@@ -321,6 +384,28 @@ export const CirculationPage: React.FC<CirculationPageProps> = ({ onSelectBook }
                 className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500"
                 required
               />
+            </div>
+            <div className="flex flex-wrap items-center gap-1 mt-1.5">
+              <span className="text-[10px] text-slate-500">Quick:</span>
+              {[
+                { id: '1', label: '#1 CLRS' },
+                { id: '2', label: '#2 TAOCP' },
+                { id: '5', label: '#5 Clean Code' },
+                { id: '7', label: '#7 Deep Learning' }
+              ].map((b) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => setDeskBookId(b.id)}
+                  className={`px-1.5 py-0.5 rounded text-[10px] border transition ${
+                    deskBookId === b.id
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-semibold'
+                      : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                  }`}
+                >
+                  {b.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -366,7 +451,7 @@ export const CirculationPage: React.FC<CirculationPageProps> = ({ onSelectBook }
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
             {activeQueuesList.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] text-slate-400">Waiting Lines:</span>
+                <span className="text-[10px] text-slate-400">Active Lines:</span>
                 {activeQueuesList.map((q) => (
                   <button
                     key={q.book_id}
@@ -400,6 +485,18 @@ export const CirculationPage: React.FC<CirculationPageProps> = ({ onSelectBook }
               >
                 {queueLoading ? '...' : 'Inspect Queue'}
               </button>
+              {queueData && (queueData.queue_length > 0 || (queueData.queue_items && queueData.queue_items.length > 0)) && (
+                <button
+                  type="button"
+                  onClick={() => inspectBookId && handleClearQueue(parseInt(inspectBookId))}
+                  disabled={queueLoading}
+                  className="px-2.5 py-1.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-semibold transition flex items-center gap-1 disabled:opacity-50"
+                  title="Clear all reservations for this book"
+                >
+                  <RotateCcw size={12} />
+                  <span>Reset</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -423,19 +520,34 @@ export const CirculationPage: React.FC<CirculationPageProps> = ({ onSelectBook }
               <div className="flex flex-wrap items-center gap-3 overflow-x-auto pb-2">
                 {(queueData.queue_items || queueData.fifo_queue_items || []).map((item: any, idx: number) => (
                   <div key={idx} className="flex items-center gap-3">
-                    <div className={`p-3.5 rounded-xl border min-w-[190px] ${
+                    <div className={`p-3.5 rounded-xl border min-w-[210px] flex flex-col justify-between ${
                       idx === 0 
                         ? 'bg-amber-500/10 border-amber-500/40 text-amber-300' 
                         : 'bg-slate-900/80 border-slate-800 text-slate-300'
                     }`}>
-                      <div className="flex items-center justify-between text-[11px] font-mono mb-1">
-                        <span className="font-bold">Position #{idx + 1}</span>
-                        {idx === 0 && <span className="text-[10px] bg-amber-500/20 px-1.5 py-0.5 rounded font-bold">FRONT (NEXT)</span>}
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] font-mono mb-1">
+                          <span className="font-bold">Position #{idx + 1}</span>
+                          {idx === 0 && <span className="text-[10px] bg-amber-500/20 px-1.5 py-0.5 rounded font-bold">FRONT (NEXT)</span>}
+                        </div>
+                        <p className="text-xs font-bold text-white">{item.user_name || `User #${item.user_id}`}</p>
+                        <p className="text-[10px] text-slate-400 mt-1 font-mono">
+                          Held: {new Date(item.reserved_at || item.created_at || Date.now()).toLocaleDateString()}
+                        </p>
                       </div>
-                      <p className="text-xs font-bold text-white">{item.user_name || `User #${item.user_id}`}</p>
-                      <p className="text-[10px] text-slate-400 mt-1 font-mono">
-                        Held: {new Date(item.reserved_at || item.created_at || Date.now()).toLocaleDateString()}
-                      </p>
+
+                      {item.reservation_id && (
+                        <button
+                          type="button"
+                          onClick={() => handleCancelReservation(item.reservation_id)}
+                          disabled={queueLoading}
+                          className="mt-3 px-2 py-1 bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 rounded-lg text-[10px] font-semibold transition flex items-center justify-center gap-1 disabled:opacity-50"
+                          title="Withdraw from queue"
+                        >
+                          <X size={11} />
+                          <span>Withdraw from Queue</span>
+                        </button>
+                      )}
                     </div>
 
                     {idx < (queueData.queue_items || queueData.fifo_queue_items || []).length - 1 && (

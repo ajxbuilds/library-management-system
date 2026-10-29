@@ -74,6 +74,7 @@ export const api = {
   getBookQueue: (bookId: number) => request<any>(`/reservations/book/${bookId}/queue`),
   getActiveQueues: () => request<any[]>('/reservations/active-queues'),
   cancelReservation: (id: number) => request<any>(`/reservations/${id}`, { method: 'DELETE' }),
+  clearBookQueue: (bookId: number) => request<any>(`/reservations/book/${bookId}/clear`, { method: 'POST' }),
   resetMyReservations: () => request<any>('/reservations/reset-my', { method: 'POST' }),
 
   // Fines

@@ -37,7 +37,6 @@ def issue_book(
         target_user_id = current_user.id
         loan_days = min(loan_days, 14)
     else:
-        # For Admin / Librarian, target_user_id can be specified in req, or defaults to current_user.id
         if not target_user_id:
             target_user_id = current_user.id
 
