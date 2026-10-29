@@ -25,6 +25,7 @@ export const CirculationPage: React.FC<CirculationPageProps> = ({ onSelectBook }
   const [deskMode, setDeskMode] = useState<'ISSUE' | 'QUEUE'>('ISSUE');
   const [deskSubmitting, setDeskSubmitting] = useState(false);
   const [seedingDemo, setSeedingDemo] = useState(false);
+  const [returningLoanId, setReturningLoanId] = useState<number | null>(null);
 
   // Book Queue inspect state
   const [inspectBookId, setInspectBookId] = useState<string>('5');
@@ -192,16 +193,21 @@ export const CirculationPage: React.FC<CirculationPageProps> = ({ onSelectBook }
 
   const handleReturn = async (loanId: number) => {
     try {
-      const res = await api.returnBook(loanId);
-      const fineNotice = res.fine_amount > 0 ? ` (Overdue fine generated: $${res.fine_amount.toFixed(2)})` : ' (No fine)';
+      setReturningLoanId(loanId);
+      const res = await api.returnBook(loanId, true);
+      const fineAmt = res.fine_applied || res.fine_amount || 0;
+      const fineNotice = fineAmt > 0 ? ` (Overdue fine generated: $${fineAmt.toFixed(2)})` : ' (No overdue fine)';
       setActionMsg({
         type: 'success',
-        text: `Book returned successfully!${fineNotice}. Action recorded to LIFO Undo Stack.`
+        text: `Loan #${loanId} returned successfully!${fineNotice}. Action recorded to LIFO Undo Stack.`
       });
-      loadLoans();
-      if (queueData?.book_id) loadQueue(queueData.book_id);
+      await loadLoans();
+      if (queueData?.book_id) await loadQueue(queueData.book_id);
+      await loadActiveQueues();
     } catch (err: any) {
       setActionMsg({ type: 'error', text: err.message || 'Failed to return book' });
+    } finally {
+      setReturningLoanId(null);
     }
   };
 
@@ -563,6 +569,22 @@ export const CirculationPage: React.FC<CirculationPageProps> = ({ onSelectBook }
 
       {/* Loans Table with Filters */}
       <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-6 shadow-xl space-y-4">
+        {actionMsg && (
+          <div className={`p-3 rounded-xl flex items-center justify-between gap-3 border text-xs animate-fadeIn ${
+            actionMsg.type === 'success'
+              ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300'
+              : 'bg-rose-950/40 border-rose-500/30 text-rose-300'
+          }`}>
+            <div className="flex items-center gap-2">
+              {actionMsg.type === 'success' ? <CheckCircle size={15} /> : <AlertTriangle size={15} />}
+              <span className="font-medium">{actionMsg.text}</span>
+            </div>
+            <button onClick={() => setActionMsg(null)} className="text-slate-400 hover:text-white p-1">
+              <X size={13} />
+            </button>
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-700/60">
           <div className="flex items-center gap-2">
             <button
@@ -655,13 +677,21 @@ export const CirculationPage: React.FC<CirculationPageProps> = ({ onSelectBook }
                       <td className="py-3 px-2 text-right">
                         <button
                           onClick={() => handleReturn(loan.id)}
-                          className={`px-3 py-1.5 rounded-lg text-white font-semibold transition text-xs ${
+                          disabled={returningLoanId === loan.id}
+                          className={`px-3 py-1.5 rounded-lg text-white font-semibold transition text-xs flex items-center justify-center gap-1.5 ml-auto disabled:opacity-50 ${
                             isOverdue 
                               ? 'bg-rose-600 hover:bg-rose-500 shadow-md shadow-rose-600/30' 
                               : 'bg-brand-600 hover:bg-brand-500 shadow-md shadow-brand-600/30'
                           }`}
                         >
-                          Process Return
+                          {returningLoanId === loan.id ? (
+                            <>
+                              <RefreshCw size={12} className="animate-spin" />
+                              <span>Returning...</span>
+                            </>
+                          ) : (
+                            <span>Process Return</span>
+                          )}
                         </button>
                       </td>
                     </tr>

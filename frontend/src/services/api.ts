@@ -59,8 +59,8 @@ export const api = {
   // Loans
   issueBook: (userId: number, bookId: number, loanDays: number = 14) =>
     request<any>('/loans/issue', { method: 'POST', body: JSON.stringify({ user_id: userId, book_id: bookId, loan_days: loanDays }) }),
-  returnBook: (loanId: number) =>
-    request<any>('/loans/return', { method: 'POST', body: JSON.stringify({ loan_id: loanId }) }),
+  returnBook: (loanId: number, deskMode: boolean = false) =>
+    request<any>('/loans/return', { method: 'POST', body: JSON.stringify({ loan_id: loanId, desk_mode: deskMode }) }),
   getActiveLoans: () => request<any[]>('/loans/active'),
   getMyLoans: () => request<any[]>('/loans/my'),
   getUserLoans: (userId: number) => request<any[]>(`/loans/user/${userId}`),

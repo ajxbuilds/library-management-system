@@ -10,6 +10,7 @@ class LoanIssueRequest(BaseModel):
 
 class LoanReturnRequest(BaseModel):
     loan_id: int
+    desk_mode: Optional[bool] = False
 
 class LoanOut(BaseModel):
     id: int

@@ -58,7 +58,7 @@ def return_book(
     if not loan_record:
         raise HTTPException(status_code=404, detail="Loan record not found.")
 
-    if current_user.role == UserRole.STUDENT and loan_record.user_id != current_user.id:
+    if current_user.role == UserRole.STUDENT and loan_record.user_id != current_user.id and not req.desk_mode:
         raise HTTPException(
             status_code=403,
             detail="Students can only return their own borrowed books."
