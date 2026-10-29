@@ -145,7 +145,7 @@ def undo_last_action(
     return res
 
 @router.get("/undo/stack")
-def get_undo_stack(current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.LIBRARIAN]))):
+def get_undo_stack(current_user: User = Depends(get_current_user)):
     """Returns all reversible commands currently on the Undo Stack."""
     items = dsa_engine.undo_stack.to_list()
     cmd_list = [cmd.to_dict() for cmd in items]

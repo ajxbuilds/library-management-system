@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Undo2, Layers, CheckCircle2, AlertCircle } from 'lucide-react';
 import { api } from '../services/api';
 import { useNotifications } from '../context/NotificationContext';
+import { useAuth } from '../context/AuthContext';
 
 export const UndoFloatingButton: React.FC<{ onActionUndone?: () => void }> = ({ onActionUndone }) => {
+  const { user } = useAuth();
   const [stackDepth, setStackDepth] = useState<number>(0);
   const [latestCommand, setLatestCommand] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -11,6 +13,7 @@ export const UndoFloatingButton: React.FC<{ onActionUndone?: () => void }> = ({ 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const fetchUndoStack = async () => {
+    if (!user) return;
     try {
       const res = await api.getUndoStack();
       setStackDepth(res.stack_depth || 0);
@@ -25,10 +28,12 @@ export const UndoFloatingButton: React.FC<{ onActionUndone?: () => void }> = ({ 
   };
 
   useEffect(() => {
-    fetchUndoStack();
-    const interval = setInterval(fetchUndoStack, 4000);
-    return () => clearInterval(interval);
-  }, []);
+    if (user) {
+      fetchUndoStack();
+      const interval = setInterval(fetchUndoStack, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
 
   const handleUndo = async () => {
     if (stackDepth === 0 || isProcessing) return;
